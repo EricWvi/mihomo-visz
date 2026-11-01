@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,6 +19,12 @@ import (
 	"mihomo-visz/internal/store"
 )
 
+// 构建时通过 -ldflags "-X main.version=... -X main.commit=..." 注入。
+var (
+	version = "dev"
+	commit  = "unknown"
+)
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("启动失败", "error", err)
@@ -26,7 +33,12 @@ func main() {
 }
 func run() error {
 	path := flag.String("config", "config.yaml", "YAML 配置文件路径")
+	showVersion := flag.Bool("version", false, "打印版本后退出")
 	flag.Parse()
+	if *showVersion {
+		fmt.Printf("mihomo-visz %s (%s)\n", version, commit)
+		return nil
+	}
 	cfg, err := config.Load(*path)
 	if err != nil {
 		return err
@@ -46,7 +58,7 @@ func run() error {
 	srv := http.Server{Addr: cfg.Listen, Handler: server.Handler(db, source, cfg), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	listenErr := make(chan error, 1)
 	go func() { listenErr <- srv.ListenAndServe() }()
-	slog.Info("Mihomo Visz 已启动", "listen", cfg.Listen, "timezone", cfg.Timezone)
+	slog.Info("Mihomo Visz 已启动", "listen", cfg.Listen, "timezone", cfg.Timezone, "version", version)
 	select {
 	case <-ctx.Done():
 	case <-done:

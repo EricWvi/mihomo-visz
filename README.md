@@ -54,6 +54,22 @@ task dev:frontend  # Vite：127.0.0.1:5173，/api 代理到后端
 
 一个数据目录只运行一个采集进程。开发时复用已运行的后端，不要让两个进程同时采集到同一个数据库。
 
+## 发布
+
+推送 `v*` 标签（如 `v1.2.3`）后，GitHub Actions 构建 `linux/amd64`、`linux/arm64` 镜像并推送到 GHCR，标签为版本号（`1.2.3`）和 `latest`；带 `-` 的预发布版本（如 `v1.3.0-rc.1`）不更新 `latest`。也可以在 Actions 页面手动运行 release 工作流并填写版本号。镜像构建会运行前端类型检查、Vite 构建和 `CGO_ENABLED=0` 的 Go 测试；版本号和 commit 通过 `-ldflags` 注入，`mihomo-visz -version` 可查看。
+
+镜像内配置文件挂载到 `/app/config.yaml`，相对路径以 `/app` 为基准：前端位于 `/app/frontend/dist`，与默认 `frontend_dir` 一致；数据卷为 `/app/data`，需设置 `data_dir: "./data"`。Mihomo 控制器通常只监听本机，用 host 网络运行即可沿用 `127.0.0.1` 的 `listen` 和 `mihomo.url`：
+
+```bash
+docker run -d --network host \
+  -v mihomo-visz-data:/app/data \
+  -v ./config.yaml:/app/config.yaml:ro \
+  -e MIHOMO_SECRET=... \
+  ghcr.io/<owner>/mihomo-visz:latest
+```
+
+也可以不用环境变量，而是把 secret 文件挂载进容器，并让 `mihomo.secret_file` 指向容器内路径。
+
 ## 数据如何获得
 
 ```text

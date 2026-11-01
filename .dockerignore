@@ -1,0 +1,11 @@
+.git
+.github
+**/node_modules
+frontend/dist
+frontend/e2e
+.tmp
+.data
+data
+memories
+*.log
+config.yaml
