@@ -1,0 +1,8 @@
+- 始终用简体中文与 Eric 沟通。
+- 工作过程中临时文件和工具缓存放在各级工作目录的 .tmp 下；脚本依赖也放在 .tmp 下。
+- 工作区下如果有 memories，先读 memories/AGENTS.md，再按其指引加载当前项目相关记忆。
+- 工作区下如果有 specs，先读 specs/AGENTS.md。
+- 文档使用 Markdown。
+- Mihomo 控制器仅允许 GET（含 WebSocket 握手）；禁止更改配置、切换节点、关闭连接或进行其他写操作。
+- SQLite 使用纯 Go 驱动；以 CGO_ENABLED=0 验证构建。
+- 不在本地构建 Docker 镜像，不运行 buildkit 容器。
