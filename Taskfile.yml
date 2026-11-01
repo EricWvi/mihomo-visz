@@ -20,11 +20,14 @@ tasks:
       - CGO_ENABLED=0 go test ./...
       - cd frontend && npm run typecheck
   build:
-    desc: 构建纯 Go 后端与前端
+    desc: 构建嵌入前端的纯 Go 二进制（.tmp/bin/mihomo-visz）
     cmds:
-      - cd frontend && npm run build
-      - mkdir -p .tmp/bin
-      - CGO_ENABLED=0 go build -trimpath -o .tmp/bin/mihomo-visz ./cmd/mihomo-visz
+      - ./scripts/build.sh
+  clean:
+    desc: 删除构建产物和已构建的 frontend/dist
+    cmds:
+      - rm -rf .tmp/bin
+      - find frontend/dist -mindepth 1 ! -name .gitkeep -delete
   run:
     desc: 运行构建产物（先 task build）
     cmds:

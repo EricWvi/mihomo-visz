@@ -17,6 +17,9 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+# .dockerignore keeps any local dist out; only the fresh build is embedded.
+COPY --from=web /src/frontend/dist ./frontend/dist
+RUN ./scripts/check-embed.sh
 RUN CGO_ENABLED=0 go test ./...
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
       -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
@@ -26,8 +29,6 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=build /out/mihomo-visz /app/mihomo-visz
-# Config paths resolve against /app, so frontend_dir "./frontend/dist" finds this.
-COPY --from=web /src/frontend/dist /app/frontend/dist
 COPY --from=build --chown=nonroot:nonroot /out/data /app/data
 VOLUME ["/app/data"]
 EXPOSE 36750

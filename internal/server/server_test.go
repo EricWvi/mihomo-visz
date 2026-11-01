@@ -3,11 +3,11 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"mihomo-visz/internal/collector"
@@ -31,9 +31,10 @@ func TestReadOnlyAPIAndHourlyData(t *testing.T) {
 	if err = db.Record(context.Background(), []store.Usage{{Hour: at.Unix(), Node: "深港专线1", Host: "google.com", Domain: "google.com", Download: 1000}}, nil, at); err != nil {
 		t.Fatal(err)
 	}
-	assets := t.TempDir()
-	os.WriteFile(filepath.Join(assets, "index.html"), []byte("test frontend"), 0600)
-	h := Handler(db, fakeStatus{}, config.Config{Location: loc, Timezone: "Asia/Shanghai", FrontendDir: assets})
+	h, err := Handler(db, fakeStatus{}, config.Config{Location: loc, Timezone: "Asia/Shanghai"}, fstest.MapFS{"index.html": {Data: []byte("test frontend")}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/api/traffic?date=2026-11-01", nil))
 	var body struct {
@@ -69,5 +70,76 @@ func TestReadOnlyAPIAndHourlyData(t *testing.T) {
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 	if w.Body.String() != "test frontend" {
 		t.Fatal("静态文件未返回")
+	}
+}
+
+func TestStaticCaching(t *testing.T) {
+	db, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	web := fstest.MapFS{
+		"index.html":           {Data: []byte("<html>app</html>")},
+		"favicon.svg":          {Data: []byte("<svg/>")},
+		"assets/index-abc.js":  {Data: []byte("console.log(1)")},
+		"assets/index-abc.css": {Data: []byte("body{}")},
+		".gitkeep":             {},
+	}
+	h, err := Handler(db, fakeStatus{}, config.Config{Location: time.UTC, Timezone: "UTC"}, web)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(path string, header ...string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", path, nil)
+		for i := 0; i+1 < len(header); i += 2 {
+			r.Header.Set(header[i], header[i+1])
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	cases := []struct{ path, cache, typ string }{
+		{"/", "no-cache", "text/html"},
+		{"/favicon.svg", "no-cache", "image/svg+xml"},
+		{"/assets/index-abc.js", "public, max-age=31536000, immutable", "javascript"},
+		{"/assets/index-abc.css", "public, max-age=31536000, immutable", "text/css"},
+	}
+	for _, c := range cases {
+		w := get(c.path)
+		if w.Code != 200 || w.Header().Get("Cache-Control") != c.cache || !strings.Contains(w.Header().Get("Content-Type"), c.typ) || w.Header().Get("ETag") == "" {
+			t.Fatalf("%s: %d cache=%q type=%q etag=%q", c.path, w.Code, w.Header().Get("Cache-Control"), w.Header().Get("Content-Type"), w.Header().Get("ETag"))
+		}
+		if again := get(c.path, "If-None-Match", w.Header().Get("ETag")); again.Code != http.StatusNotModified || again.Body.Len() != 0 {
+			t.Fatalf("%s 未按 ETag 返回 304: %d", c.path, again.Code)
+		}
+	}
+	if w := get("/some/page"); w.Code != 200 || w.Body.String() != "<html>app</html>" {
+		t.Fatalf("页面路径未回退到 index.html: %d", w.Code)
+	}
+	for _, path := range []string{"/assets/missing.js", "/missing.png", "/.gitkeep"} {
+		if w := get(path); w.Code != 404 {
+			t.Fatalf("%s 应为 404，得到 %d", path, w.Code)
+		}
+	}
+	if w := get("/api/nope"); w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("API 不应被缓存")
+	}
+}
+
+func TestStaticNotBuilt(t *testing.T) {
+	db, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	h, err := Handler(db, fakeStatus{}, config.Config{Location: time.UTC, Timezone: "UTC"}, fstest.MapFS{".gitkeep": {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("未构建前端时应为 503，得到 %d", w.Code)
 	}
 }

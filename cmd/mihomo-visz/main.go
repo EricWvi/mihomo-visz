@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	mihomovisz "mihomo-visz"
 	"mihomo-visz/internal/collector"
 	"mihomo-visz/internal/config"
 	"mihomo-visz/internal/mihomo"
@@ -55,7 +56,11 @@ func run() error {
 	done := make(chan struct{})
 	var sourceErr error
 	go func() { defer close(done); sourceErr = source.Run(ctx) }()
-	srv := http.Server{Addr: cfg.Listen, Handler: server.Handler(db, source, cfg), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	handler, err := server.Handler(db, source, cfg, mihomovisz.Frontend())
+	if err != nil {
+		return err
+	}
+	srv := http.Server{Addr: cfg.Listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	listenErr := make(chan error, 1)
 	go func() { listenErr <- srv.ListenAndServe() }()
 	slog.Info("Mihomo Visz 已启动", "listen", cfg.Listen, "timezone", cfg.Timezone, "version", version)

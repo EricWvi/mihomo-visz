@@ -21,15 +21,15 @@ task run
 没有 Task 时：
 
 ```bash
-go mod download
-npm --prefix frontend ci --cache .tmp/npm-cache
-npm --prefix frontend run build
-mkdir -p .tmp/bin
-CGO_ENABLED=0 go build -o .tmp/bin/mihomo-visz ./cmd/mihomo-visz
+./scripts/build.sh
 .tmp/bin/mihomo-visz -config config.yaml
 ```
 
-`-config` 默认读取当前目录的 `config.yaml`，相对文件路径以该配置文件所在目录为基准。配置采用 `homepage/config.example.yaml` 的 `listen`、`data_dir` 风格，新增 `timezone`、`flush_interval`、`retention_days`、`mihomo` 和 `frontend_dir`。应用没有 OIDC 或登录配置。
+`scripts/build.sh` 依次执行 `npm ci`、Vite 构建（含类型检查）、嵌入检查、Go 测试，最后以 `CGO_ENABLED=0` 编译并把 `frontend/dist` 嵌入二进制，运行时不需要任何前端文件。嵌入检查（`scripts/check-embed.sh`）用 `go list` 确认 `index.html`、`favicon.svg` 以及 `index.html` 引用的全部打包资源都会被嵌入，缺失即构建失败。版本号和 commit 通过 `-ldflags` 注入，`mihomo-visz -version` 可查看。`task clean` 删除构建产物和已构建的 `frontend/dist`。
+
+静态文件从内存提供：Vite 生成的带内容哈希的 `assets/*` 返回 `Cache-Control: public, max-age=31536000, immutable`；`index.html`、`favicon.svg` 等返回 `no-cache`，靠 ETag 协商（未变化时 304），发布新版本后浏览器即可拿到新页面。`/api/*` 一律 `no-store`。
+
+`-config` 默认读取当前目录的 `config.yaml`，相对文件路径以该配置文件所在目录为基准。配置采用 `homepage/config.example.yaml` 的 `listen`、`data_dir` 风格，新增 `timezone`、`flush_interval`、`retention_days` 和 `mihomo`。应用没有 OIDC 或登录配置。
 
 `flush_interval` 默认 `30s`，`retention_days` 默认 `7`。采集增量先按“小时 × 节点 × 完整域名”在内存中合并，查询和图表只显示已落盘的数据，通常最多延迟一个落盘周期。正常退出（SIGINT / SIGTERM）会补写最后一批；异常断电或强制终止可能丢失尚未落盘的增量，默认最多约 30 秒。写入失败时保留缓冲并重试，页面会显示存储错误。
 
@@ -56,9 +56,9 @@ task dev:frontend  # Vite：127.0.0.1:5173，/api 代理到后端
 
 ## 发布
 
-推送 `v*` 标签（如 `v1.2.3`）后，GitHub Actions 构建 `linux/amd64`、`linux/arm64` 镜像并推送到 GHCR，标签为版本号（`1.2.3`）和 `latest`；带 `-` 的预发布版本（如 `v1.3.0-rc.1`）不更新 `latest`。也可以在 Actions 页面手动运行 release 工作流并填写版本号。镜像构建会运行前端类型检查、Vite 构建和 `CGO_ENABLED=0` 的 Go 测试；版本号和 commit 通过 `-ldflags` 注入，`mihomo-visz -version` 可查看。
+推送 `v*` 标签（如 `v1.2.3`）后，GitHub Actions 构建 `linux/amd64`、`linux/arm64` 镜像并推送到 GHCR，标签为版本号（`1.2.3`）和 `latest`；带 `-` 的预发布版本（如 `v1.3.0-rc.1`）不更新 `latest`。也可以在 Actions 页面手动运行 release 工作流并填写版本号。镜像构建与 `task build` 走同样的类型检查、嵌入检查和 Go 测试。
 
-镜像内配置文件挂载到 `/app/config.yaml`，相对路径以 `/app` 为基准：前端位于 `/app/frontend/dist`，与默认 `frontend_dir` 一致；数据卷为 `/app/data`，需设置 `data_dir: "./data"`。Mihomo 控制器通常只监听本机，用 host 网络运行即可沿用 `127.0.0.1` 的 `listen` 和 `mihomo.url`：
+镜像内配置文件挂载到 `/app/config.yaml`，相对路径以 `/app` 为基准。数据卷为 `/app/data`，需设置 `data_dir: "./data"`。Mihomo 控制器通常只监听本机，用 host 网络运行即可沿用 `127.0.0.1` 的 `listen` 和 `mihomo.url`：
 
 ```bash
 docker run -d --network host \

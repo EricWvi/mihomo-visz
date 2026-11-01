@@ -17,6 +17,3 @@ mihomo:
   interval: "1s"
   # 超过此时长没有快照则断线重连；重连重新建立基线。
   stale_after: "10s"
-
-# 构建后由 Go 提供前端静态文件。
-frontend_dir: "./frontend/dist"

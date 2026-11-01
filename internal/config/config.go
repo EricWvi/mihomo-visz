@@ -25,7 +25,6 @@ type Config struct {
 	RetentionDays int           `yaml:"retention_days"`
 	DataDir       string        `yaml:"data_dir"`
 	Timezone      string        `yaml:"timezone"`
-	FrontendDir   string        `yaml:"frontend_dir"`
 	Mihomo        struct {
 		URL        string `yaml:"url"`
 		SecretFile string `yaml:"secret_file"`
@@ -44,7 +43,6 @@ func Load(path string) (Config, error) {
 	c.RetentionDays = DefaultRetentionDays
 	c.DataDir = "./.data"
 	c.Timezone = "Asia/Shanghai"
-	c.FrontendDir = "./frontend/dist"
 	c.Mihomo.URL = "http://127.0.0.1:9090"
 	c.Mihomo.Interval = "1s"
 	c.Mihomo.StaleAfter = "10s"
@@ -62,8 +60,8 @@ func Load(path string) (Config, error) {
 	if err = dec.Decode(&extra); err != io.EOF {
 		return c, errors.New("配置仅允许一个 YAML 文档")
 	}
-	if c.Listen == "" || c.DataDir == "" || c.FrontendDir == "" {
-		return c, errors.New("listen、data_dir 和 frontend_dir 不能为空")
+	if c.Listen == "" || c.DataDir == "" {
+		return c, errors.New("listen 和 data_dir 不能为空")
 	}
 	u, err := url.Parse(c.Mihomo.URL)
 	if err != nil || u == nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -96,7 +94,6 @@ func Load(path string) (Config, error) {
 		return filepath.Join(base, p)
 	}
 	c.DataDir = resolve(c.DataDir)
-	c.FrontendDir = resolve(c.FrontendDir)
 	c.Mihomo.SecretFile = resolve(c.Mihomo.SecretFile)
 	return c, nil
 }

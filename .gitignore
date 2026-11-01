@@ -4,7 +4,8 @@ logs
 
 # Dependencies and build output
 node_modules/
-dist/
+**/dist/*
+!frontend/dist/.gitkeep
 dist-ssr/
 /target/
 *.tsbuildinfo

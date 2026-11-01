@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +18,11 @@ import (
 
 type statusReader interface{ Status() collector.Status }
 
-func Handler(db *store.Store, source statusReader, cfg config.Config) http.Handler {
+func Handler(db *store.Store, source statusReader, cfg config.Config, web fs.FS) (http.Handler, error) {
+	static, err := newStatic(web)
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, struct {
@@ -80,16 +83,7 @@ func Handler(db *store.Store, source statusReader, cfg config.Config) http.Handl
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) { writeError(w, 404, "接口不存在") })
-	files := http.FileServer(http.Dir(cfg.FrontendDir))
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			if _, err := os.Stat(filepath.Join(cfg.FrontendDir, "index.html")); err != nil {
-				http.Error(w, "前端尚未构建，请执行 task build，或通过 Vite 开发服务访问。", http.StatusServiceUnavailable)
-				return
-			}
-		}
-		files.ServeHTTP(w, r)
-	})
+	mux.Handle("GET /", static)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
@@ -99,7 +93,7 @@ func Handler(db *store.Store, source statusReader, cfg config.Config) http.Handl
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 		mux.ServeHTTP(w, r.WithContext(ctx))
-	})
+	}), nil
 }
 func parseFilter(w http.ResponseWriter, r *http.Request, cfg config.Config) (store.Filter, bool) {
 	var f store.Filter
