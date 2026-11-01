@@ -40,10 +40,3 @@ export function longDate(date: string) {
   const [y, m, d] = date.split('-').map(Number)
   return y ? `${y} 年 ${m} 月 ${d} 日 · ${weekday(date)}` : ''
 }
-export function ago(ms: number) {
-  const s = Math.max(0, Math.round(ms / 1000))
-  if (s < 5) return '刚刚'
-  if (s < 60) return `${s} 秒前`
-  if (s < 3600) return `${Math.floor(s / 60)} 分钟前`
-  return `${Math.floor(s / 3600)} 小时前`
-}

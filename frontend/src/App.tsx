@@ -10,7 +10,7 @@ import { HourlyChart, type HourBucket } from '@/components/HourlyChart'
 import { get, trafficParams, type Row, type Status, type Traffic } from '@/lib/api'
 import { useFilters, type Direction } from '@/lib/filters'
 import { buildSeries, otherColor, type Series } from '@/lib/series'
-import { ago, byteParts, bytes, cn, hourLabel, longDate, percent, timeLabel } from '@/lib/utils'
+import { byteParts, bytes, cn, hourLabel, longDate, percent, timeLabel } from '@/lib/utils'
 
 type Amount = { upload: number; download: number }
 const directionNames: Record<Direction, string> = { total: '总流量', upload: '上传', download: '下载' }
@@ -38,14 +38,11 @@ function Sparkline({ values }: { values: number[] }) {
 }
 
 function StatusPill({ status, failed }: { status?: Status; failed: boolean }) {
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [])
   const state = failed ? 'down' : !status ? 'wait' : status.connected ? 'live' : 'down'
   return <Tooltip><TooltipTrigger asChild><button type="button" className={cn('status-pill', state)} onMouseDown={noFocus}>
     <span className="pulse" /><span>{state === 'live' ? '正在采集' : state === 'wait' ? '连接中' : '采集已断开'}</span>
     {status?.version && <span className="status-extra">{status.version}</span>}
     {status?.connected && <span className="status-extra">{status.active} 个连接</span>}
-    {!!status?.last_sample && <span className="status-extra">{ago(now - status.last_sample)}</span>}
   </button></TooltipTrigger><TooltipContent className="leading-relaxed">
     内核 {status?.version || '未知'} · {status?.active || 0} 个业务连接 · 已排除 {status?.inner || 0} 个内部连接<br />
     本次启动以来 {status?.samples?.toLocaleString('zh-CN') || 0} 次采样{status?.reconnects ? ` · 重连 ${status.reconnects} 次` : ''}
