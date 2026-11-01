@@ -24,3 +24,6 @@ config.yaml
 
 # Independent memory repository
 /memories/
+/playwright-report/
+/frontend/playwright-report/
+/frontend/test-results/

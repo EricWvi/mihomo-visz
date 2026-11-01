@@ -1,0 +1,31 @@
+version: '3'
+
+tasks:
+  deps:
+    desc: 安装 Go 与前端依赖
+    cmds:
+      - go mod download
+      - cd frontend && npm ci --cache ../.tmp/npm-cache
+  dev:server:
+    desc: 启动后端及真实流量采集（36750）
+    cmds:
+      - go run ./cmd/mihomo-visz {{.CLI_ARGS}}
+  dev:frontend:
+    desc: 启动 Vite（5173）
+    cmds:
+      - cd frontend && npm run dev
+  test:
+    desc: 验证采集逻辑、存储、只读约束和前端类型
+    cmds:
+      - CGO_ENABLED=0 go test ./...
+      - cd frontend && npm run typecheck
+  build:
+    desc: 构建纯 Go 后端与前端
+    cmds:
+      - cd frontend && npm run build
+      - mkdir -p .tmp/bin
+      - CGO_ENABLED=0 go build -trimpath -o .tmp/bin/mihomo-visz ./cmd/mihomo-visz
+  run:
+    desc: 运行构建产物（先 task build）
+    cmds:
+      - .tmp/bin/mihomo-visz {{.CLI_ARGS}}

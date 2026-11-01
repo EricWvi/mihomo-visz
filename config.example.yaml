@@ -1,0 +1,22 @@
+# visz 不进行鉴权，默认只监听本机。
+listen: "127.0.0.1:36750"
+# 相对路径以配置文件所在目录为基准。
+data_dir: "./.data"
+# 所有小时和日期按此时区显示、统计。
+timezone: "Asia/Shanghai"
+# 每秒采集，在内存中合并后每 30 秒落盘；正常退出时补写最后一批。
+flush_interval: "30s"
+# 滚动保留 7 天，过期小时桶整体删除。
+retention_days: 7
+
+mihomo:
+  url: "http://127.0.0.1:9090"
+  # 文件只包含 secret 字符串；认证信息不传给浏览器。
+  # 也可使用 MIHOMO_SECRET 环境变量，优先于 secret_file。
+  secret_file: "/home/eric/.config/mihomo/secret"
+  interval: "1s"
+  # 超过此时长没有快照则断线重连；重连重新建立基线。
+  stale_after: "10s"
+
+# 构建后由 Go 提供前端静态文件。
+frontend_dir: "./frontend/dist"
